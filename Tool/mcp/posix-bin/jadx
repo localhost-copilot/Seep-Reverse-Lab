@@ -1,0 +1,49 @@
+#!/bin/sh
+# ==============================================================================
+#  Seep Reverse Lab — jadx POSIX 启动垫片 (macOS / Linux)
+# ==============================================================================
+#  为什么需要它：
+#    内置的 bin/jadx 是 Gradle 生成的上游脚本，其 CLASSPATH 被硬编码为
+#    lib/jadx-1.5.1-all.jar，而本包实际内置的是 jadx-1.5.6-all.jar
+#    （Windows 侧的 jadx.bat 指向 1.5.6，是正确的）。
+#    因此上游 POSIX 脚本在 macOS/Linux 上必然报
+#    "Could not find or load main class jadx.cli.JadxCLI"。
+#    本垫片改为动态定位 lib/jadx-*-all.jar，不依赖版本号，也不修改上游文件。
+#
+#  seep MCP 通过 JADX_BAT 注入点调用本垫片（见 Tool/mcp/seep_mcp_launcher.py）。
+#  用法与 jadx 完全一致:  jadx -d <out> [--deobf] <target.apk>
+# ==============================================================================
+set -eu
+
+POSIX_BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+SAFE_DIR="$(cd "$POSIX_BIN_DIR/../Tool/safe" && pwd)"
+JADX_DIR="$SAFE_DIR/jadx"
+
+# 动态定位 jadx 主 jar（优先 all-in-one 包，兼容未来 repair-tools 升级）
+JAR=""
+for c in "$JADX_DIR"/lib/jadx-*-all.jar "$JADX_DIR"/lib/jadx.jar; do
+    [ -f "$c" ] && JAR="$c" && break
+done
+if [ -z "$JAR" ]; then
+    echo "[ERROR] 未找到 jadx jar: $JADX_DIR/lib/jadx-*-all.jar" >&2
+    exit 1
+fi
+
+# 定位真实可用的 java：优先 JAVA_HOME，其次 PATH
+if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVACMD="$JAVA_HOME/bin/java"
+elif command -v java >/dev/null 2>&1 && java -version >/dev/null 2>&1; then
+    JAVACMD="java"
+else
+    echo "[ERROR] 未找到可用 Java 运行时（需 JDK 11+）。" >&2
+    echo "        macOS: brew install openjdk  或  export JAVA_HOME=\$(/usr/libexec/java_home)" >&2
+    exit 1
+fi
+
+# 与内置 jadx.bat 保持一致的 JVM 参数
+exec "$JAVACMD" \
+    -Xms256M \
+    -XX:MaxRAMPercentage=70.0 \
+    -Djdk.util.zip.disableZip64ExtraFieldValidation=true \
+    -cp "$JAR" \
+    jadx.cli.JadxCLI "$@"

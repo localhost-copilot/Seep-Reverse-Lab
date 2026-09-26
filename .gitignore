@@ -16,6 +16,11 @@ __pycache__/
 venv/
 ENV/
 
+# macOS/Linux 兼容层 —— 本机生成物（含绝对路径，不入库）
+Tool/mcp/.venv-macos/
+.mcp.json.seep-windows-backup
+setup/macos/dsh-cordis.patch.yml
+
 # OS generated files
 .DS_Store
 Thumbs.db

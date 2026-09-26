@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.2.0-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
   <a href="https://github.com/angusdevgo/seep-reverse-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
-  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-0078D6?style=for-the-badge&logo=apple" alt="Platform">
   <img src="https://img.shields.io/badge/Architecture-x86%20%7C%20x64%20%7C%20ARM64-orange?style=for-the-badge" alt="Architecture">
 </p>
 
@@ -155,9 +155,12 @@ Seep\ (251 MB)
 ├── README.zh.md                   ← 本文件（中文文档）
 ├── CLAUDE.md                      ← Claude Code 项目级原生指令
 ├── .mcp.json                      ← 项目级 MCP 注册文件（Claude Code / OpenCode）
+├── .mcp.macos.json                ← macOS MCP 注册（绝对路径，由 install.sh 生成）
 ├── DSH-PROFILE.md                 ← DeepSeek Harness Cordis 插件配置模板
 ├── check.bat                      ← ⭐ 双击一键体检入口（Windows）
 ├── check.ps1                      ← PowerShell 体检入口
+├── check.sh                       ← ⭐ 一键体检入口（macOS / Linux）
+├── install.sh                     ← 一键安装入口（macOS / Linux）
 │
 ├── Tool\
 │   ├── skill\                     ← 9 大逆向专业技能
@@ -191,7 +194,8 @@ Seep\ (251 MB)
 │   └── scripts\                   ← 工作流自动化脚本
 │
 ├── setup\                         ← 安装、修复与自检脚本集
-└── MANUAL\                        ← 5 份战术专项 SOP 手册
+│   └── macos\                     ← macOS 兼容层（install/verify/smoke-test、radare2 重定位、IDA MCP）
+└── MANUAL\                        ← 5 份战术专项 SOP 手册 + MACOS.md
     ├── PREREQUISITES.md           ← 环境预要求指南
     ├── IDA-PRO.md                 ← IDA Pro 商业软件接入指南
     ├── ANTI-DEBUG.md              ← 反调试绕过字典与代理 DLL 框架
@@ -240,16 +244,28 @@ Seep\ (251 MB)
 ## 🚀 快速开始与部署
 
 ### 1. 运行依赖
-- **操作系统**：Windows 10 / 11 x64（推荐），兼容 Linux / macOS
+- **操作系统**：Windows 10 / 11 x64、macOS 12+（Intel / Apple Silicon）、Linux
+  > macOS/Linux 使用原生 POSIX 链路；Windows 侧二进制与脚本原样保留，两套入口互不干扰。
 - **核心运行时**：Python 3.11+、Node.js 18+、Git
+- **macOS 附加**：Xcode Command Line Tools（内置化 radare2 需要）、JDK 11+（Android 链路，`brew install openjdk`）
 
 ### 2. 一键部署
-在 PowerShell 中进入项目根目录执行：
+
+**Windows（PowerShell）**
 ```powershell
 cd setup
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
-> **脚本自动完成**：解压内置依赖包 → 校验工具完整性 → 安装 Python mcp 库 → 注册 MCP 服务 → 执行全量自检。
+
+**macOS / Linux（无需 PowerShell）**
+```bash
+./install.sh                  # 完整安装 + 自检
+./install.sh --register-dsh   # 额外写入 DSH profile（自动备份 + YAML 校验）
+```
+
+> **脚本自动完成**：解压内置依赖包 → 校验工具完整性 → 安装 Python mcp 库 →
+> 把官方 radare2 6.2.2 重定位为 macOS 原生内置件 → 注册 MCP 服务 → 执行全量自检。
+> macOS 细节见 [`MANUAL/MACOS.md`](MANUAL/MACOS.md)。
 
 ### 3. 多 Agent 接入方式
 
@@ -260,13 +276,17 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 | **DeepSeek Harness** | `Tool/prompts/AGENTS.md` | `DSH-PROFILE.md` (Cordis YAML) | 指令部署至工作目录 + MCP 插件写入 DSH Profile |
 | **OpenCode / Codex** | 项目根 `AGENTS.md` | 客户端全局配置 | 复制 `AGENTS.md` 至项目工作根目录 |
 
-### 4. 部署完备性校验（7 大维度 · 35 项检查）
+### 4. 部署完备性校验（7 大维度 · 35+ 项检查）
 
 | 方式 | 操作 |
 |---|---|
-| ⭐ 双击一键（最简单）| 双击项目根目录下的 `check.bat` |
-| PowerShell | `powershell -ExecutionPolicy Bypass -File .\check.ps1` |
+| ⭐ 双击一键（Windows）| 双击项目根目录下的 `check.bat` |
+| Windows PowerShell | `powershell -ExecutionPolicy Bypass -File .\check.ps1` |
+| **macOS / Linux** | `./check.sh`（`--fast` 跳过冒烟测试，`--deep` 附加真实 APK 反编译/解包） |
 | Agent 对话框 | 发送 `check`（或 `检查` / `doctor`）— Agent 自动运行并内联输出报告 |
+
+> macOS 体检含**真实 MCP stdio 握手**与实机工具调用（radare2 分析、jadx 反编译、apktool 解包），
+> 单跑：`Tool/mcp/.venv-macos/bin/python setup/macos/smoke-test.py --deep`
 
 <p align="center">
   <img src="docs/images/verifier-check.png" alt="Seep 部署完备性体检全绿看板 (35 项全部通过)" width="850">

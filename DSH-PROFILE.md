@@ -10,15 +10,28 @@
 当用户在 DSH WebUI 或 CLI 对话框要求 **“部署工作台”** 或 **“校验安装是否完整”** 时：
 
 ### 1. 部署执行
+**Windows**
 ```bash
 cd setup
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
+**macOS / Linux**（DSH 桌面版宿主为 macOS 时用这套，无需 PowerShell）
+```bash
+./install.sh                  # 完整安装 + 自检
+./install.sh --register-dsh   # 额外把 MCP 注册写入本 profile（自动备份 + YAML 校验）
+```
 
 ### 2. 校验与汇报输出
 Agent 必须运行根目录校验脚本并向用户输出结构化 Markdown 体检卡片：
+**Windows**
 ```bash
 powershell -NoProfile -ExecutionPolicy Bypass -File .\check.ps1
+```
+**macOS / Linux**
+```bash
+./check.sh          # 含真实 MCP stdio 握手冒烟测试
+./check.sh --fast   # 快速静态体检
+./check.sh --deep   # 附加真实 APK 反编译/解包
 ```
 依次核验并汇报：
 * 📁 核心架构 (Tool/ 完整性)
@@ -71,6 +84,44 @@ plugins:
 
 > `<SEEP_ROOT>` = 本包根目录（如 `C:\Users\你\Desktop\Seep`）  
 > `<IDA_*>` = 有 IDA Pro 时填，没有则删掉整个 ida-mcp 块（自动降级为 Radare2）
+
+### macOS / Linux 原生配置（推荐，勿用上面的 `python` / `ida_pro_mcp` 形态）
+
+macOS 上 `python` 命令通常不存在（只有 `python3`），且随包 `ida-pro-mcp` 是 Windows venv + GUI 插件形态。
+安装脚本会生成 `setup/macos/dsh-cordis.patch.yml`，可直接追加到 `$DSH_PROFILE_DIR/cordis.patch.yml`，
+或用 `./install.sh --register-dsh` 自动写入：
+
+```yaml
+- id: mcp-seep
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: seep
+    transport: stdio
+    command: '<SEEP_ROOT>/Tool/mcp/.venv-macos/bin/python'
+    args:
+      - '<SEEP_ROOT>/Tool/mcp/seep_mcp_launcher.py'
+    env:
+      PYTHONIOENCODING: utf-8
+
+- id: mcp-js-reverse
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: js-reverse
+    transport: stdio
+    command: '/opt/homebrew/bin/npx'
+    args: ['-y', 'js-reverse-mcp']
+
+- id: mcp-ida
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: ida
+    transport: stdio
+    command: '<SEEP_ROOT>/Tool/mcp/Tool/safe/ida-mcp-rs/bin/ida-mcp'
+```
+
+> macOS 的 IDA 桥接改用 [`blacktop/ida-mcp-rs`](https://github.com/blacktop/ida-mcp-rs)（headless，75 个工具），
+> 不再需要 `ida-pro-mcp` 的 `<IDA_PYTHON>` 与 HTTP 13337 端口。
+> 注册后工具以 `mcp__seep__seep_r2_info` 这类名字暴露；**需重载/重启 DSH 生效**。
 
 ---
 

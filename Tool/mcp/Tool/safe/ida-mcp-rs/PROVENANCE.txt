@@ -1,0 +1,2 @@
+source: https://github.com/blacktop/ida-mcp-rs/releases/tag/v9.4.4
+asset: ida-mcp_9.4.4_Darwin_arm64.tar.gz
